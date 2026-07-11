@@ -4,9 +4,13 @@ const helmet = require('helmet');
 const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
-const config = require('./config/database');
 const swaggerJsDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
+const { errorHandler } = require('./middlewares/errorHandler');
+const { asyncHandler } = require('./utils/asyncHandler');
+const authRoutes = require('./routes/authRoutes');
+const usuarioRoutes = require('./routes/usuarioRoutes');
+const rolRoutes = require('./routes/rolRoutes');
 
 const app = express();
 
@@ -14,6 +18,12 @@ app.use(helmet());
 app.use(compression());
 app.use(cors());
 app.use(express.json());
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({ message: 'JSON inválido' });
+  }
+  next(err);
+});
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(morgan('dev'));
@@ -36,15 +46,14 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
+app.use('/api/auth', authRoutes);
+app.use('/api/usuarios', usuarioRoutes);
+app.use('/api/roles', rolRoutes);
+
 app.use((req, res) => {
   res.status(404).json({ message: 'Not Found' });
 });
 
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({
-    message: err.message || 'Internal Server Error',
-  });
-});
+app.use(errorHandler);
 
 module.exports = app;
