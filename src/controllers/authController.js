@@ -2,11 +2,68 @@ const { authService } = require('../services/authService');
 const { asyncHandler } = require('../utils/asyncHandler');
 
 const authController = {
+  /**
+   * @openapi
+   * /api/auth/registro:
+   *   post:
+   *     summary: Registrar un usuario
+   *     tags: [Auth]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [nombre, email, password]
+   *             properties:
+   *               nombre:
+   *                 type: string
+   *               email:
+   *                 type: string
+   *               password:
+   *                 type: string
+   *               rol_id:
+   *                 type: string
+   *                 description: UUID opcional del rol
+   *     responses:
+   *       201:
+   *         description: Usuario creado y token JWT
+   *       400:
+   *         description: Datos inválidos
+   *       500:
+   *         description: Error interno
+   */
   registrar: asyncHandler(async (req, res) => {
     const resultado = await authService.registrar(req.body);
     res.status(201).json(resultado);
   }),
 
+  /**
+   * @openapi
+   * /api/auth/login:
+   *   post:
+   *     summary: Iniciar sesión
+   *     tags: [Auth]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [email, password]
+   *             properties:
+   *               email:
+   *                 type: string
+   *               password:
+   *                 type: string
+   *     responses:
+   *       200:
+   *         description: Token JWT
+   *       400:
+   *         description: Datos inválidos
+   *       401:
+   *         description: Credenciales inválidas
+   */
   login: asyncHandler(async (req, res) => {
     const resultado = await authService.login(req.body);
     res.json(resultado);
