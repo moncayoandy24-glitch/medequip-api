@@ -1,9 +1,10 @@
 const { auth } = require('./auth');
+const { AppError } = require('../utils/appError');
 
 const authorize = (...rolesPermitidos) => {
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({ message: 'No autenticado' });
+      return next(new AppError('No autenticado', 401));
     }
 
     const rolesUsuario = req.user.roles || [];
@@ -12,7 +13,7 @@ const authorize = (...rolesPermitidos) => {
     );
 
     if (!tienePermiso) {
-      return res.status(403).json({ message: 'No tienes permiso para acceder' });
+      return next(new AppError('No tienes permiso para acceder', 403));
     }
 
     next();

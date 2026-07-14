@@ -26,11 +26,23 @@ const rolRepository = {
   },
 
   async update(id, data) {
-    const { nombre, descripcion } = data;
-    const result = await pool.query(
-      'UPDATE roles SET nombre = $1, descripcion = $2 WHERE id = $3 RETURNING *',
-      [nombre, descripcion, id]
-    );
+    const fields = [];
+    const values = [];
+    let index = 1;
+
+    Object.keys(data).forEach((key) => {
+      if (data[key] !== undefined && data[key] !== null) {
+        fields.push(`${key} = $${index}`);
+        values.push(data[key]);
+        index++;
+      }
+    });
+
+    if (!fields.length) return null;
+
+    values.push(id);
+    const query = `UPDATE roles SET ${fields.join(', ')} WHERE id = $${index} RETURNING *`;
+    const result = await pool.query(query, values);
     return result.rows[0];
   },
 

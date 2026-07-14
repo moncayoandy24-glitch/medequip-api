@@ -55,7 +55,7 @@ const authService = {
   },
 
   generarToken(usuario) {
-    const roles = usuario.roles || [];
+    const roles = (usuario.roles || []).filter(Boolean);
     return jwt.sign(
       { id: usuario.id, email: usuario.email, roles },
       process.env.JWT_SECRET,

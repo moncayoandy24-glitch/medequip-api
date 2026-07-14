@@ -32,7 +32,12 @@ const rolService = {
         throw new Error('El nombre del rol ya está en uso');
       }
     }
-    return await rolRepository.update(id, data);
+
+    const updateData = {};
+    if (data.nombre !== undefined) updateData.nombre = data.nombre;
+    if (data.descripcion !== undefined) updateData.descripcion = data.descripcion;
+
+    return await rolRepository.update(id, updateData);
   },
 
   async eliminar(id) {

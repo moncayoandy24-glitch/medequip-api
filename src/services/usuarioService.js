@@ -55,7 +55,10 @@ const usuarioService = {
       }
     }
 
-    const updateData = { nombre: data.nombre, email: data.email, activo: data.activo };
+    const updateData = {};
+    if (data.nombre !== undefined) updateData.nombre = data.nombre;
+    if (data.email !== undefined) updateData.email = data.email;
+    if (data.activo !== undefined) updateData.activo = data.activo;
 
     if (data.password) {
       const saltRounds = 10;
