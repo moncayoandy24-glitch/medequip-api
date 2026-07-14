@@ -21,9 +21,9 @@ const usuarioRepository = {
     return result.rows[0];
   },
 
-  async create(data) {
+  async create(data, client = pool) {
     const { nombre, email, password_hash } = data;
-    const result = await pool.query(
+    const result = await client.query(
       'INSERT INTO usuarios (nombre, email, password_hash) VALUES ($1, $2, $3) RETURNING id, nombre, email, activo, created_at, updated_at',
       [nombre, email, password_hash]
     );
@@ -64,8 +64,8 @@ const usuarioRepository = {
     return result.rows[0];
   },
 
-  async asignarRol(usuarioId, rolId) {
-    const result = await pool.query(
+  async asignarRol(usuarioId, rolId, client = pool) {
+    const result = await client.query(
       'INSERT INTO usuario_roles (usuario_id, rol_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING *',
       [usuarioId, rolId]
     );

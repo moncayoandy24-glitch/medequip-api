@@ -6,8 +6,7 @@ const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
 const swaggerJsDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
-const { errorHandler } = require('./middlewares/errorHandler');
-const { asyncHandler } = require('./utils/asyncHandler');
+const { sendError } = require('./utils/responseHelper');
 const authRoutes = require('./routes/authRoutes');
 const usuarioRoutes = require('./routes/usuarioRoutes');
 const rolRoutes = require('./routes/rolRoutes');
@@ -18,11 +17,14 @@ app.use(helmet());
 app.use(compression());
 app.use(cors());
 app.use(express.json());
-app.use((err, req, res, next) => {
-  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
-    return res.status(400).json({ message: 'JSON inválido' });
+app.use((req, res, next) => {
+  if (req.headers['content-type'] && req.headers['content-type'].includes('application/json')) {
+    return next();
   }
-  next(err);
+  if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
+    return next();
+  }
+  next();
 });
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -51,9 +53,14 @@ app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/roles', rolRoutes);
 
 app.use((req, res) => {
-  res.status(404).json({ message: 'Not Found' });
+  res.status(404).json({ success: false, message: 'Not Found' });
 });
 
-app.use(errorHandler);
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({ success: false, message: 'JSON inválido' });
+  }
+  sendError(err, req, res, next);
+});
 
 module.exports = app;

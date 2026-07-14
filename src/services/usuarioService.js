@@ -1,64 +1,83 @@
 const bcrypt = require('bcrypt');
+const { pool } = require('../config/database');
 const { usuarioRepository } = require('../repositories/usuarioRepository');
 const { rolRepository } = require('../repositories/rolRepository');
+const { AppError } = require('../utils/appError');
 
 const usuarioService = {
   async obtenerTodos() {
-    return await usuarioRepository.findAll();
+    const usuarios = await usuarioRepository.findAll();
+    return usuarios.map(({ password_hash, ...u }) => u);
   },
 
   async obtenerPorId(id) {
     const usuario = await usuarioRepository.findById(id);
     if (!usuario) {
-      throw new Error('Usuario no encontrado');
+      throw new AppError('Usuario no encontrado', 404);
     }
-    return usuario;
+    const { password_hash, ...u } = usuario;
+    return u;
   },
 
   async crear(data) {
     const existente = await usuarioRepository.findByEmail(data.email);
     if (existente) {
-      throw new Error('El email ya está registrado');
+      throw new AppError('El email ya está registrado', 409);
     }
 
     const saltRounds = 10;
     const password_hash = await bcrypt.hash(data.password, saltRounds);
 
-    const usuario = await usuarioRepository.create({
-      nombre: data.nombre,
-      email: data.email,
-      password_hash,
-    });
-
     if (data.rol_id) {
       const rol = await rolRepository.findById(data.rol_id);
       if (!rol) {
-        throw new Error('Rol no válido');
+        throw new AppError('Rol no válido', 404);
       }
-      await usuarioRepository.asignarRol(usuario.id, data.rol_id);
     }
 
-    const usuarioConRoles = await usuarioRepository.findById(usuario.id);
-    return usuarioConRoles;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const usuario = await usuarioRepository.create({
+        nombre: data.nombre,
+        email: data.email,
+        password_hash,
+      }, client);
+
+      if (data.rol_id) {
+        await usuarioRepository.asignarRol(usuario.id, data.rol_id, client);
+      }
+
+      await client.query('COMMIT');
+
+      const usuarioConRoles = await usuarioRepository.findById(usuario.id);
+      const { password_hash: _, ...u } = usuarioConRoles;
+      return u;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   },
 
   async actualizar(id, data) {
     const usuario = await usuarioRepository.findById(id);
     if (!usuario) {
-      throw new Error('Usuario no encontrado');
+      throw new AppError('Usuario no encontrado', 404);
     }
 
     if (data.email && data.email !== usuario.email) {
       const existente = await usuarioRepository.findByEmail(data.email);
       if (existente) {
-        throw new Error('El email ya está en uso');
+        throw new AppError('El email ya está en uso', 409);
       }
     }
 
     const updateData = {};
     if (data.nombre !== undefined) updateData.nombre = data.nombre;
     if (data.email !== undefined) updateData.email = data.email;
-    if (data.activo !== undefined) updateData.activo = data.activo;
 
     if (data.password) {
       const saltRounds = 10;
@@ -67,23 +86,21 @@ const usuarioService = {
 
     await usuarioRepository.update(id, updateData);
 
-    if (data.rol_id) {
-      const rol = await rolRepository.findById(data.rol_id);
-      if (!rol) {
-        throw new Error('Rol no válido');
-      }
-      await usuarioRepository.asignarRol(id, data.rol_id);
-    }
-
-    return await usuarioRepository.findById(id);
+    return await this.obtenerPorId(id);
   },
 
-  async eliminar(id) {
+  async cambiarEstado(id, activo) {
     const usuario = await usuarioRepository.findById(id);
     if (!usuario) {
-      throw new Error('Usuario no encontrado');
+      throw new AppError('Usuario no encontrado', 404);
     }
-    return await usuarioRepository.delete(id);
+
+    if (usuario.email === process.env.ADMIN_EMAIL && !activo) {
+      throw new AppError('No se puede desactivar el administrador principal', 403);
+    }
+
+    await usuarioRepository.update(id, { activo });
+    return await this.obtenerPorId(id);
   },
 };
 

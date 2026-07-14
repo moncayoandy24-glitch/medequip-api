@@ -25,6 +25,9 @@ CREATE TABLE IF NOT EXISTS usuario_roles (
   PRIMARY KEY (usuario_id, rol_id)
 );
 
+DROP TRIGGER IF EXISTS trg_usuarios_updated_at ON usuarios;
+DROP TRIGGER IF EXISTS trg_roles_updated_at ON roles;
+
 CREATE OR REPLACE FUNCTION actualizar_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN

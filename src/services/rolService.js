@@ -1,4 +1,5 @@
 const { rolRepository } = require('../repositories/rolRepository');
+const { AppError } = require('../utils/appError');
 
 const rolService = {
   async obtenerTodos() {
@@ -8,7 +9,7 @@ const rolService = {
   async obtenerPorId(id) {
     const rol = await rolRepository.findById(id);
     if (!rol) {
-      throw new Error('Rol no encontrado');
+      throw new AppError('Rol no encontrado', 404);
     }
     return rol;
   },
@@ -16,7 +17,7 @@ const rolService = {
   async crear(data) {
     const existente = await rolRepository.findByName(data.nombre);
     if (existente) {
-      throw new Error('El rol ya existe');
+      throw new AppError('El rol ya existe', 409);
     }
     return await rolRepository.create(data);
   },
@@ -24,12 +25,12 @@ const rolService = {
   async actualizar(id, data) {
     const existente = await rolRepository.findById(id);
     if (!existente) {
-      throw new Error('Rol no encontrado');
+      throw new AppError('Rol no encontrado', 404);
     }
     if (data.nombre && data.nombre !== existente.nombre) {
       const nombreRepetido = await rolRepository.findByName(data.nombre);
       if (nombreRepetido) {
-        throw new Error('El nombre del rol ya está en uso');
+        throw new AppError('El nombre del rol ya está en uso', 409);
       }
     }
 
@@ -38,14 +39,6 @@ const rolService = {
     if (data.descripcion !== undefined) updateData.descripcion = data.descripcion;
 
     return await rolRepository.update(id, updateData);
-  },
-
-  async eliminar(id) {
-    const rol = await rolRepository.findById(id);
-    if (!rol) {
-      throw new Error('Rol no encontrado');
-    }
-    return await rolRepository.delete(id);
   },
 };
 
