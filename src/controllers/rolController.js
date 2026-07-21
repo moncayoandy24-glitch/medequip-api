@@ -1,46 +1,23 @@
+const { body, param } = require('express-validator');
 const { rolService } = require('../services/rolService');
 const { asyncHandler } = require('../utils/asyncHandler');
+const { success } = require('../utils/response');
 
 const rolController = {
-  listar: asyncHandler(async (req, res) => {
-    const roles = await rolService.obtenerTodos();
-    res.json({ data: roles });
-  }),
-
-  obtener: asyncHandler(async (req, res) => {
-    const rol = await rolService.obtenerPorId(req.params.id);
-    res.json({ data: rol });
-  }),
-
-  crear: asyncHandler(async (req, res) => {
-    const rol = await rolService.crear(req.body);
-    res.status(201).json({ data: rol });
-  }),
-
-  actualizar: asyncHandler(async (req, res) => {
-    const rol = await rolService.actualizar(req.params.id, req.body);
-    res.json({ data: rol });
-  }),
-
-  eliminar: asyncHandler(async (req, res) => {
-    await rolService.eliminar(req.params.id);
-    res.status(204).send();
-  }),
+  listar: asyncHandler(async (req, res) => success(res, { message: 'Roles obtenidos correctamente', data: await rolService.obtenerTodos() })),
+  obtener: asyncHandler(async (req, res) => success(res, { message: 'Rol obtenido correctamente', data: await rolService.obtenerPorId(req.params.id) })),
+  crear: asyncHandler(async (req, res) => success(res, { status: 201, message: 'Rol creado correctamente', data: await rolService.crear(req.body) })),
+  actualizar: asyncHandler(async (req, res) => success(res, { message: 'Rol actualizado correctamente', data: await rolService.actualizar(req.params.id, req.body) })),
+  cambiarEstado: asyncHandler(async (req, res) => success(res, { message: 'Estado del rol actualizado correctamente', data: await rolService.cambiarEstado(req.params.id, req.body.activo) })),
+  eliminar: asyncHandler(async (req, res) => success(res, { message: 'Rol desactivado correctamente', data: await rolService.eliminar(req.params.id) })),
 };
 
+const id = param('id').isUUID().withMessage('ID inválido');
 const validaciones = {
-  listar: [],
-  obtener: [require('express-validator').param('id').isUUID(4).withMessage('ID inválido')],
-  crear: [
-    require('express-validator').body('nombre').notEmpty().withMessage('El nombre es obligatorio').isString().isLength({ max: 50 }),
-    require('express-validator').body('descripcion').optional().isString().isLength({ max: 255 }),
-  ],
-  actualizar: [
-    require('express-validator').param('id').isUUID(4).withMessage('ID inválido'),
-    require('express-validator').body('nombre').optional().isString().isLength({ max: 50 }),
-    require('express-validator').body('descripcion').optional().isString().isLength({ max: 255 }),
-  ],
-  eliminar: [require('express-validator').param('id').isUUID(4).withMessage('ID inválido')],
+  listar: [], obtener: [id], eliminar: [id],
+  crear: [body('nombre').trim().notEmpty().isLength({ max: 50 }), body('descripcion').optional({ nullable: true }).isString().isLength({ max: 255 })],
+  actualizar: [id, body('nombre').optional().trim().notEmpty().isLength({ max: 50 }), body('descripcion').optional({ nullable: true }).isString().isLength({ max: 255 })],
+  cambiarEstado: [id, body('activo').isBoolean().toBoolean()],
 };
 
 module.exports = { rolController, validaciones };

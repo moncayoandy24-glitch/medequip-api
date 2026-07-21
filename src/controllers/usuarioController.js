@@ -1,50 +1,64 @@
+const { body, param, query } = require('express-validator');
 const { usuarioService } = require('../services/usuarioService');
 const { asyncHandler } = require('../utils/asyncHandler');
+const { success } = require('../utils/response');
 
 const usuarioController = {
   listar: asyncHandler(async (req, res) => {
-    const usuarios = await usuarioService.obtenerTodos();
-    res.json({ data: usuarios });
+    const page = Number(req.query.page || 1);
+    const limit = Number(req.query.limit || 10);
+    const resultado = await usuarioService.obtenerTodos({
+      page, limit, search: req.query.search || '',
+      activo: req.query.activo === undefined ? undefined : req.query.activo === 'true',
+    });
+    return success(res, {
+      message: 'Usuarios obtenidos correctamente', data: resultado.rows,
+      pagination: { page, limit, total: resultado.total, totalPages: Math.ceil(resultado.total / limit) },
+    });
   }),
-
-  obtener: asyncHandler(async (req, res) => {
-    const usuario = await usuarioService.obtenerPorId(req.params.id);
-    res.json({ data: usuario });
-  }),
-
-  crear: asyncHandler(async (req, res) => {
-    const usuario = await usuarioService.crear(req.body);
-    res.status(201).json({ data: usuario });
-  }),
-
-  actualizar: asyncHandler(async (req, res) => {
-    const usuario = await usuarioService.actualizar(req.params.id, req.body);
-    res.json({ data: usuario });
-  }),
-
-  eliminar: asyncHandler(async (req, res) => {
-    await usuarioService.eliminar(req.params.id);
-    res.status(204).send();
-  }),
+  obtener: asyncHandler(async (req, res) => success(res, {
+    message: 'Usuario obtenido correctamente', data: await usuarioService.obtenerPorId(req.params.id),
+  })),
+  crear: asyncHandler(async (req, res) => success(res, {
+    status: 201, message: 'Usuario creado correctamente', data: await usuarioService.crear(req.body),
+  })),
+  actualizar: asyncHandler(async (req, res) => success(res, {
+    message: 'Usuario actualizado correctamente', data: await usuarioService.actualizar(req.params.id, req.body),
+  })),
+  cambiarEstado: asyncHandler(async (req, res) => success(res, {
+    message: 'Estado del usuario actualizado correctamente',
+    data: await usuarioService.cambiarEstado(req.params.id, req.body.activo),
+  })),
+  eliminar: asyncHandler(async (req, res) => success(res, {
+    message: 'Usuario desactivado correctamente', data: await usuarioService.eliminar(req.params.id),
+  })),
 };
 
+const id = param('id').isUUID().withMessage('ID inválido');
+const camposOpcionales = [
+  body('nombre').optional().trim().notEmpty().isLength({ max: 100 }),
+  body('apellido').optional({ nullable: true }).trim().isLength({ max: 100 }),
+  body('email').optional().isEmail().withMessage('Correo inválido').normalizeEmail().isLength({ max: 150 }),
+  body('password').optional().isLength({ min: 8, max: 72 }),
+  body('telefono').optional({ nullable: true }).trim().isLength({ max: 30 }),
+  body('cargo').optional({ nullable: true }).trim().isLength({ max: 100 }),
+  body('rol_id').optional().isUUID().withMessage('Rol inválido'),
+];
 const validaciones = {
-  listar: [],
-  obtener: [require('express-validator').param('id').isUUID(4).withMessage('ID inválido')],
+  listar: [
+    query('page').optional().isInt({ min: 1 }), query('limit').optional().isInt({ min: 1, max: 100 }),
+    query('activo').optional().isBoolean(), query('search').optional().isString().isLength({ max: 100 }),
+  ],
+  obtener: [id],
   crear: [
-    require('express-validator').body('nombre').notEmpty().withMessage('El nombre es obligatorio').isString().isLength({ max: 100 }),
-    require('express-validator').body('email').isEmail().withMessage('Email inválido').isLength({ max: 150 }),
-    require('express-validator').body('password').isLength({ min: 6 }).withMessage('La contraseña debe tener al menos 6 caracteres'),
-    require('express-validator').body('rol_id').optional().isUUID(4).withMessage('Rol inválido'),
+    body('nombre').trim().notEmpty().isLength({ max: 100 }),
+    body('email').isEmail().normalizeEmail().isLength({ max: 150 }),
+    body('password').isLength({ min: 8, max: 72 }),
+    ...camposOpcionales.slice(1),
   ],
-  actualizar: [
-    require('express-validator').param('id').isUUID(4).withMessage('ID inválido'),
-    require('express-validator').body('nombre').optional().isString().isLength({ max: 100 }),
-    require('express-validator').body('email').optional().isEmail().withMessage('Email inválido').isLength({ max: 150 }),
-    require('express-validator').body('password').optional().isLength({ min: 6 }).withMessage('La contraseña debe tener al menos 6 caracteres'),
-    require('express-validator').body('rol_id').optional().isUUID(4).withMessage('Rol inválido'),
-  ],
-  eliminar: [require('express-validator').param('id').isUUID(4).withMessage('ID inválido')],
+  actualizar: [id, ...camposOpcionales],
+  cambiarEstado: [id, body('activo').isBoolean().withMessage('activo debe ser booleano').toBoolean()],
+  eliminar: [id],
 };
 
 module.exports = { usuarioController, validaciones };

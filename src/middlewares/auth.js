@@ -1,20 +1,28 @@
 const jwt = require('jsonwebtoken');
+const { usuarioRepository } = require('../repositories/usuarioRepository');
 
-const auth = (req, res, next) => {
+const auth = async (req, res, next) => {
   const authHeader = req.headers.authorization;
-
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'Token no proporcionado' });
+    return res.status(401).json({ success: false, message: 'Token no proporcionado', errors: [] });
   }
 
-  const token = authHeader.split(' ')[1];
+  let decoded;
+  try {
+    decoded = jwt.verify(authHeader.slice(7), process.env.JWT_SECRET);
+  } catch (error) {
+    return res.status(401).json({ success: false, message: 'Token inválido o expirado', errors: [] });
+  }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (err) {
-    return res.status(401).json({ message: 'Token inválido o expirado' });
+    const usuario = await usuarioRepository.findById(decoded.id);
+    if (!usuario || !usuario.activo) {
+      return res.status(401).json({ success: false, message: 'Usuario no disponible', errors: [] });
+    }
+    req.user = { id: usuario.id, email: usuario.email, roles: usuario.roles };
+    return next();
+  } catch (error) {
+    return next(error);
   }
 };
 

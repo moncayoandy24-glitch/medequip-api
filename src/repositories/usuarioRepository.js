@@ -1,67 +1,95 @@
 const pool = require('../config/database');
+const { Usuario } = require('../entities/Usuario');
+const { UsuarioRol } = require('../entities/UsuarioRol');
+
+const selectUsuario = `
+  SELECT u.id, u.nombre, u.apellido, u.email, u.telefono, u.cargo, u.activo,
+         u.created_at, u.updated_at,
+         COALESCE(array_agg(r.nombre) FILTER (WHERE r.nombre IS NOT NULL), '{}') AS roles
+  FROM usuarios u
+  LEFT JOIN usuario_roles ur ON u.id = ur.usuario_id
+  LEFT JOIN roles r ON ur.rol_id = r.id AND r.activo = TRUE`;
 
 const usuarioRepository = {
-  async findAll() {
+  async findAll({ page = 1, limit = 10, search = '', activo } = {}) {
+    const values = [];
+    const conditions = [];
+    if (search) {
+      values.push(`%${search}%`);
+      conditions.push(`(u.nombre ILIKE $${values.length} OR u.apellido ILIKE $${values.length} OR u.email ILIKE $${values.length})`);
+    }
+    if (activo !== undefined) {
+      values.push(activo);
+      conditions.push(`u.activo = $${values.length}`);
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const countResult = await pool.query(`SELECT COUNT(*) FROM usuarios u ${where}`, values);
+    values.push(limit, (page - 1) * limit);
     const result = await pool.query(
-      'SELECT u.id, u.nombre, u.email, u.activo, u.created_at, u.updated_at, array_agg(r.nombre) as roles FROM usuarios u LEFT JOIN usuario_roles ur ON u.id = ur.usuario_id LEFT JOIN roles r ON ur.rol_id = r.id GROUP BY u.id ORDER BY u.created_at DESC'
+      `${selectUsuario} ${where} GROUP BY u.id ORDER BY u.created_at DESC LIMIT $${values.length - 1} OFFSET $${values.length}`,
+      values
     );
-    return result.rows;
+    return { rows: Usuario.fromRows(result.rows), total: Number(countResult.rows[0].count) };
   },
 
   async findById(id) {
-    const result = await pool.query(
-      'SELECT u.id, u.nombre, u.email, u.activo, u.created_at, u.updated_at, array_agg(r.nombre) as roles FROM usuarios u LEFT JOIN usuario_roles ur ON u.id = ur.usuario_id LEFT JOIN roles r ON ur.rol_id = r.id WHERE u.id = $1 GROUP BY u.id',
-      [id]
-    );
-    return result.rows[0];
+    const result = await pool.query(`${selectUsuario} WHERE u.id = $1 GROUP BY u.id`, [id]);
+    return Usuario.fromRow(result.rows[0]);
   },
 
   async findByEmail(email) {
-    const result = await pool.query('SELECT * FROM usuarios WHERE email = $1', [email]);
-    return result.rows[0];
+    const result = await pool.query('SELECT * FROM usuarios WHERE LOWER(email) = LOWER($1)', [email]);
+    return Usuario.fromRow(result.rows[0]);
   },
 
-  async create(data) {
-    const { nombre, email, password_hash } = data;
-    const result = await pool.query(
-      'INSERT INTO usuarios (nombre, email, password_hash) VALUES ($1, $2, $3) RETURNING id, nombre, email, activo, created_at, updated_at',
-      [nombre, email, password_hash]
-    );
-    return result.rows[0];
+  async createWithRole(data, rolId) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `INSERT INTO usuarios (nombre, apellido, email, password_hash, telefono, cargo)
+         VALUES ($1, $2, LOWER($3), $4, $5, $6)
+         RETURNING id`,
+        [data.nombre, data.apellido || null, data.email, data.password_hash, data.telefono || null, data.cargo || null]
+      );
+      if (rolId) {
+        await client.query('INSERT INTO usuario_roles (usuario_id, rol_id) VALUES ($1, $2)', [result.rows[0].id, rolId]);
+      }
+      await client.query('COMMIT');
+      return Usuario.fromRow(result.rows[0]);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   },
 
   async update(id, data) {
-    const fields = [];
-    const values = [];
-    let index = 1;
-
-    Object.keys(data).forEach((key) => {
-      if (key !== 'password_hash' || data[key]) {
-        fields.push(`${key} = $${index}`);
-        values.push(data[key]);
-        index++;
-      }
-    });
-
-    if (!fields.length) return null;
-
+    const allowed = ['nombre', 'apellido', 'email', 'telefono', 'cargo', 'password_hash'];
+    const entries = Object.entries(data).filter(([key, value]) => allowed.includes(key) && value !== undefined);
+    if (!entries.length) return this.findById(id);
+    const values = entries.map(([, value]) => value);
+    const fields = entries.map(([key], index) => `${key} = $${index + 1}`);
     values.push(id);
-    const query = `UPDATE usuarios SET ${fields.join(', ')} WHERE id = $${index} RETURNING id, nombre, email, activo, created_at, updated_at`;
-    const result = await pool.query(query, values);
-    return result.rows[0];
+    await pool.query(`UPDATE usuarios SET ${fields.join(', ')} WHERE id = $${values.length}`, values);
+    return this.findById(id);
   },
 
-  async updatePassword(id, password_hash) {
+  async setActive(id, activo) {
+    const result = await pool.query(
+      'UPDATE usuarios SET activo = $1 WHERE id = $2 RETURNING id',
+      [activo, id]
+    );
+    return Usuario.fromRow(result.rows[0]);
+  },
+
+  async updatePassword(id, passwordHash) {
     const result = await pool.query(
       'UPDATE usuarios SET password_hash = $1 WHERE id = $2 RETURNING id',
-      [password_hash, id]
+      [passwordHash, id]
     );
-    return result.rows[0];
-  },
-
-  async delete(id) {
-    const result = await pool.query('DELETE FROM usuarios WHERE id = $1 RETURNING id', [id]);
-    return result.rows[0];
+    return Usuario.fromRow(result.rows[0]);
   },
 
   async asignarRol(usuarioId, rolId) {
@@ -69,15 +97,7 @@ const usuarioRepository = {
       'INSERT INTO usuario_roles (usuario_id, rol_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING *',
       [usuarioId, rolId]
     );
-    return result.rows[0];
-  },
-
-  async removerRol(usuarioId, rolId) {
-    const result = await pool.query(
-      'DELETE FROM usuario_roles WHERE usuario_id = $1 AND rol_id = $2 RETURNING *',
-      [usuarioId, rolId]
-    );
-    return result.rows[0];
+    return UsuarioRol.fromRow(result.rows[0]);
   },
 };
 

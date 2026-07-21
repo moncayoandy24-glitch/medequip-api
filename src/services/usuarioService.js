@@ -1,86 +1,55 @@
 const bcrypt = require('bcrypt');
 const { usuarioRepository } = require('../repositories/usuarioRepository');
 const { rolRepository } = require('../repositories/rolRepository');
+const { AppError } = require('../utils/appError');
 
 const usuarioService = {
-  async obtenerTodos() {
-    return await usuarioRepository.findAll();
+  async obtenerTodos(filtros) {
+    return usuarioRepository.findAll(filtros);
   },
-
   async obtenerPorId(id) {
     const usuario = await usuarioRepository.findById(id);
-    if (!usuario) {
-      throw new Error('Usuario no encontrado');
-    }
+    if (!usuario) throw new AppError('Usuario no encontrado', 404);
     return usuario;
   },
-
   async crear(data) {
-    const existente = await usuarioRepository.findByEmail(data.email);
-    if (existente) {
-      throw new Error('El email ya está registrado');
-    }
-
-    const saltRounds = 10;
-    const password_hash = await bcrypt.hash(data.password, saltRounds);
-
-    const usuario = await usuarioRepository.create({
-      nombre: data.nombre,
-      email: data.email,
-      password_hash,
-    });
-
+    if (await usuarioRepository.findByEmail(data.email)) throw new AppError('El correo ya está registrado', 409);
+    let rol;
     if (data.rol_id) {
-      const rol = await rolRepository.findById(data.rol_id);
-      if (!rol) {
-        throw new Error('Rol no válido');
-      }
-      await usuarioRepository.asignarRol(usuario.id, data.rol_id);
+      rol = await rolRepository.findById(data.rol_id);
+      if (!rol || !rol.activo) throw new AppError('Rol no válido', 400);
     }
-
-    const usuarioConRoles = await usuarioRepository.findById(usuario.id);
-    return usuarioConRoles;
+    const password_hash = await bcrypt.hash(data.password, 10);
+    const creado = await usuarioRepository.createWithRole({ ...data, password_hash }, rol?.id);
+    return usuarioRepository.findById(creado.id);
   },
-
   async actualizar(id, data) {
-    const usuario = await usuarioRepository.findById(id);
-    if (!usuario) {
-      throw new Error('Usuario no encontrado');
+    const usuario = await this.obtenerPorId(id);
+    if (data.email && data.email.toLowerCase() !== usuario.email.toLowerCase()) {
+      if (await usuarioRepository.findByEmail(data.email)) throw new AppError('El correo ya está en uso', 409);
     }
-
-    if (data.email && data.email !== usuario.email) {
-      const existente = await usuarioRepository.findByEmail(data.email);
-      if (existente) {
-        throw new Error('El email ya está en uso');
-      }
-    }
-
-    const updateData = { nombre: data.nombre, email: data.email, activo: data.activo };
-
-    if (data.password) {
-      const saltRounds = 10;
-      updateData.password_hash = await bcrypt.hash(data.password, saltRounds);
-    }
-
-    await usuarioRepository.update(id, updateData);
-
     if (data.rol_id) {
       const rol = await rolRepository.findById(data.rol_id);
-      if (!rol) {
-        throw new Error('Rol no válido');
-      }
+      if (!rol || !rol.activo) throw new AppError('Rol no válido', 400);
       await usuarioRepository.asignarRol(id, data.rol_id);
     }
-
-    return await usuarioRepository.findById(id);
+    const updateData = {
+      nombre: data.nombre,
+      apellido: data.apellido,
+      email: data.email,
+      telefono: data.telefono,
+      cargo: data.cargo,
+      ...(data.password && { password_hash: await bcrypt.hash(data.password, 10) }),
+    };
+    return usuarioRepository.update(id, updateData);
   },
-
+  async cambiarEstado(id, activo) {
+    await this.obtenerPorId(id);
+    await usuarioRepository.setActive(id, activo);
+    return usuarioRepository.findById(id);
+  },
   async eliminar(id) {
-    const usuario = await usuarioRepository.findById(id);
-    if (!usuario) {
-      throw new Error('Usuario no encontrado');
-    }
-    return await usuarioRepository.delete(id);
+    return this.cambiarEstado(id, false);
   },
 };
 

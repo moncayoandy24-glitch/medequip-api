@@ -1,0 +1,1 @@
+const r=require('express').Router();const {notificacionController:c,validaciones:v}=require('../controllers/notificacionController');const {auth}=require('../middlewares/auth');const {validate}=require('../middlewares/validate');r.use(auth);r.get('/',validate(v.listar),c.listar);r.patch('/:id/leida',validate(v.leer),c.leer);module.exports=r;

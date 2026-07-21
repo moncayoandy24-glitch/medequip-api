@@ -1,0 +1,69 @@
+{
+  "info": {
+    "name": "MedEquip API",
+    "description": "Colección base para probar los módulos de MedEquip. Ejecute Login para guardar automáticamente el token.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "token", "value": "" },
+    { "key": "equipoId", "value": "" },
+    { "key": "ubicacionId", "value": "" },
+    { "key": "mantenimientoId", "value": "" },
+    { "key": "repuestoId", "value": "" },
+    { "key": "fallaId", "value": "" },
+    { "key": "movimientoId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Autenticación",
+      "item": [
+        { "name": "Registro", "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Usuario\",\n  \"apellido\": \"Clínico\",\n  \"email\": \"usuario@clinica.com\",\n  \"password\": \"ClaveSegura123\"\n}" }, "url": "{{baseUrl}}/api/auth/register" } },
+        { "name": "Login", "event": [{ "listen": "test", "script": { "exec": ["const json = pm.response.json();", "if (json.data && json.data.token) pm.collectionVariables.set('token', json.data.token);"] } }], "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"usuario@clinica.com\",\n  \"password\": \"ClaveSegura123\"\n}" }, "url": "{{baseUrl}}/api/auth/login" } },
+        { "name": "Perfil", "request": { "method": "GET", "url": "{{baseUrl}}/api/auth/profile" } }
+      ]
+    },
+    {
+      "name": "Equipos y catálogos",
+      "item": [
+        { "name": "Listar equipos", "request": { "method": "GET", "url": "{{baseUrl}}/api/equipos?page=1&limit=10" } },
+        { "name": "Crear equipo", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"codigo_interno\": \"EQ-001\",\n  \"nombre\": \"Monitor de signos vitales\",\n  \"numero_serie\": \"SN-001\",\n  \"estado\": \"operativo\",\n  \"nivel_riesgo\": \"alto\"\n}" }, "url": "{{baseUrl}}/api/equipos" } },
+        { "name": "Listar categorías", "request": { "method": "GET", "url": "{{baseUrl}}/api/categorias" } },
+        { "name": "Listar ubicaciones", "request": { "method": "GET", "url": "{{baseUrl}}/api/ubicaciones" } },
+        { "name": "Listar proveedores", "request": { "method": "GET", "url": "{{baseUrl}}/api/proveedores" } }
+      ]
+    },
+    {
+      "name": "Mantenimientos, calibraciones y repuestos",
+      "item": [
+        { "name": "Listar mantenimientos", "request": { "method": "GET", "url": "{{baseUrl}}/api/mantenimientos" } },
+        { "name": "Programar mantenimiento", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"equipo_id\": \"{{equipoId}}\",\n  \"tipo\": \"preventivo\",\n  \"fecha_programada\": \"2026-08-15\",\n  \"descripcion_trabajo\": \"Revisión general\"\n}" }, "url": "{{baseUrl}}/api/mantenimientos" } },
+        { "name": "Mantenimientos próximos", "request": { "method": "GET", "url": "{{baseUrl}}/api/mantenimientos/proximos?dias=30" } },
+        { "name": "Agregar repuesto al mantenimiento", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"repuesto_id\": \"{{repuestoId}}\",\n  \"cantidad\": 1\n}" }, "url": "{{baseUrl}}/api/mantenimientos/{{mantenimientoId}}/repuestos" } },
+        { "name": "Listar calibraciones", "request": { "method": "GET", "url": "{{baseUrl}}/api/calibraciones" } },
+        { "name": "Inventario de repuestos", "request": { "method": "GET", "url": "{{baseUrl}}/api/repuestos" } },
+        { "name": "Repuestos bajo stock", "request": { "method": "GET", "url": "{{baseUrl}}/api/repuestos/bajo-stock" } }
+      ]
+    },
+    {
+      "name": "Fallas y movimientos",
+      "item": [
+        { "name": "Reportar falla", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"equipo_id\": \"{{equipoId}}\",\n  \"descripcion\": \"El equipo no enciende\",\n  \"prioridad\": \"alta\"\n}" }, "url": "{{baseUrl}}/api/fallas" } },
+        { "name": "Listar fallas", "request": { "method": "GET", "url": "{{baseUrl}}/api/fallas" } },
+        { "name": "Cerrar falla", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"solucion\": \"Se reemplazó la fuente de alimentación\"\n}" }, "url": "{{baseUrl}}/api/fallas/{{fallaId}}/cerrar" } },
+        { "name": "Registrar préstamo", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"equipo_id\": \"{{equipoId}}\",\n  \"tipo\": \"prestamo\",\n  \"ubicacion_destino_id\": \"{{ubicacionId}}\",\n  \"fecha_prevista_devolucion\": \"2026-07-20T18:00:00Z\",\n  \"motivo\": \"Apoyo temporal\"\n}" }, "url": "{{baseUrl}}/api/movimientos" } },
+        { "name": "Registrar devolución", "request": { "method": "PATCH", "url": "{{baseUrl}}/api/movimientos/{{movimientoId}}/devolver" } }
+      ]
+    },
+    {
+      "name": "Indicadores y control",
+      "item": [
+        { "name": "Dashboard resumen", "request": { "method": "GET", "url": "{{baseUrl}}/api/dashboard/resumen" } },
+        { "name": "Costos", "request": { "method": "GET", "url": "{{baseUrl}}/api/dashboard/costos" } },
+        { "name": "Auditorías", "request": { "method": "GET", "url": "{{baseUrl}}/api/auditorias" } },
+        { "name": "Notificaciones", "request": { "method": "GET", "url": "{{baseUrl}}/api/notificaciones" } }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+const r=require('express').Router();const {auditoriaController:c,validaciones:v}=require('../controllers/auditoriaController');const {auth}=require('../middlewares/auth');const {authorize}=require('../middlewares/role');const {validate}=require('../middlewares/validate');r.use(auth,authorize('admin'));r.get('/',validate(v),c.listar);module.exports=r;

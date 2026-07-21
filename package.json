@@ -8,6 +8,16 @@
     "start": "node src/server.js",
     "test": "jest --passWithNoTests"
   },
+  "jest": {
+    "roots": [
+      "<rootDir>/tests"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/.kilo/",
+      "/.rmv/"
+    ]
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",

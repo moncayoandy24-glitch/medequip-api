@@ -1,85 +1,48 @@
+const { body } = require('express-validator');
 const { authService } = require('../services/authService');
 const { asyncHandler } = require('../utils/asyncHandler');
+const { success } = require('../utils/response');
+const { auditoriaRepository } = require('../repositories/auditoriaRepository');
 
 const authController = {
-  /**
-   * @openapi
-   * /api/auth/registro:
-   *   post:
-   *     summary: Registrar un usuario
-   *     tags: [Auth]
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             type: object
-   *             required: [nombre, email, password]
-   *             properties:
-   *               nombre:
-   *                 type: string
-   *               email:
-   *                 type: string
-   *               password:
-   *                 type: string
-   *               rol_id:
-   *                 type: string
-   *                 description: UUID opcional del rol
-   *     responses:
-   *       201:
-   *         description: Usuario creado y token JWT
-   *       400:
-   *         description: Datos inválidos
-   *       500:
-   *         description: Error interno
-   */
   registrar: asyncHandler(async (req, res) => {
-    const resultado = await authService.registrar(req.body);
-    res.status(201).json(resultado);
+    const data = await authService.registrar(req.body);
+    auditoriaRepository.create({ usuario_id: data.usuario.id, accion: 'creacion', modulo: 'auth', registro_id: data.usuario.id, ip: req.ip }).catch(() => {});
+    return success(res, { status: 201, message: 'Usuario registrado correctamente', data });
   }),
-
-  /**
-   * @openapi
-   * /api/auth/login:
-   *   post:
-   *     summary: Iniciar sesión
-   *     tags: [Auth]
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             type: object
-   *             required: [email, password]
-   *             properties:
-   *               email:
-   *                 type: string
-   *               password:
-   *                 type: string
-   *     responses:
-   *       200:
-   *         description: Token JWT
-   *       400:
-   *         description: Datos inválidos
-   *       401:
-   *         description: Credenciales inválidas
-   */
   login: asyncHandler(async (req, res) => {
-    const resultado = await authService.login(req.body);
-    res.json(resultado);
+    const data = await authService.login(req.body);
+    auditoriaRepository.create({ usuario_id: data.usuario.id, accion: 'inicio_sesion', modulo: 'auth', registro_id: data.usuario.id, ip: req.ip }).catch(() => {});
+    return success(res, { message: 'Inicio de sesión correcto', data });
+  }),
+  perfil: asyncHandler(async (req, res) => {
+    const data = await authService.perfil(req.user.id);
+    return success(res, { message: 'Perfil obtenido correctamente', data });
+  }),
+  cambiarPassword: asyncHandler(async (req, res) => {
+    await authService.cambiarPassword(req.user.id, req.body);
+    return success(res, { message: 'Contraseña actualizada correctamente' });
   }),
 };
 
+const datosUsuario = [
+  body('nombre').trim().notEmpty().withMessage('El nombre es obligatorio').isLength({ max: 100 }),
+  body('apellido').optional({ nullable: true }).trim().isLength({ max: 100 }),
+  body('email').isEmail().withMessage('Correo inválido').normalizeEmail().isLength({ max: 150 }),
+  body('password').isLength({ min: 8, max: 72 }).withMessage('La contraseña debe tener entre 8 y 72 caracteres'),
+  body('telefono').optional({ nullable: true }).trim().isLength({ max: 30 }),
+  body('cargo').optional({ nullable: true }).trim().isLength({ max: 100 }),
+];
+
 const validaciones = {
-  registrar: [
-    require('express-validator').body('nombre').notEmpty().withMessage('El nombre es obligatorio').isString().isLength({ max: 100 }),
-    require('express-validator').body('email').isEmail().withMessage('Email inválido').isLength({ max: 150 }),
-    require('express-validator').body('password').isLength({ min: 6 }).withMessage('La contraseña debe tener al menos 6 caracteres'),
-    require('express-validator').body('rol_id').optional().isUUID(4).withMessage('Rol inválido'),
-  ],
+  registrar: datosUsuario,
   login: [
-    require('express-validator').body('email').isEmail().withMessage('Email inválido'),
-    require('express-validator').body('password').notEmpty().withMessage('La contraseña es obligatoria'),
+    body('email').isEmail().withMessage('Correo inválido').normalizeEmail(),
+    body('password').notEmpty().withMessage('La contraseña es obligatoria'),
+  ],
+  cambiarPassword: [
+    body('passwordActual').notEmpty().withMessage('La contraseña actual es obligatoria'),
+    body('passwordNueva').isLength({ min: 8, max: 72 }).withMessage('La nueva contraseña debe tener entre 8 y 72 caracteres'),
   ],
 };
 

@@ -10,8 +10,13 @@ const validate = (validaciones) => {
       return next();
     }
 
-    const mensajes = errors.array().map((err) => err.msg);
-    throw new AppError(mensajes.join(', '), 400);
+    const detalles = errors.array().map((err) => ({
+      field: err.path,
+      message: err.msg,
+    }));
+    const error = new AppError('Error de validación', 422);
+    error.errors = detalles;
+    throw error;
   };
 };
 

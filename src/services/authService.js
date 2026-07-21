@@ -2,64 +2,51 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { usuarioRepository } = require('../repositories/usuarioRepository');
 const { rolRepository } = require('../repositories/rolRepository');
+const { AppError } = require('../utils/appError');
 
 const authService = {
   async registrar(data) {
-    const existente = await usuarioRepository.findByEmail(data.email);
-    if (existente) {
-      throw new Error('El email ya está registrado');
+    if (await usuarioRepository.findByEmail(data.email)) {
+      throw new AppError('El correo ya está registrado', 409);
     }
-
-    const saltRounds = 10;
-    const password_hash = await bcrypt.hash(data.password, saltRounds);
-
-    const usuario = await usuarioRepository.create({
-      nombre: data.nombre,
-      email: data.email,
-      password_hash,
-    });
-
-    if (data.rol_id) {
-      const rol = await rolRepository.findById(data.rol_id);
-      if (!rol) {
-        throw new Error('Rol no válido');
-      }
-      await usuarioRepository.asignarRol(usuario.id, data.rol_id);
-    }
-
-    const usuarioConRoles = await usuarioRepository.findById(usuario.id);
-    const token = this.generarToken(usuarioConRoles);
-
-    return { usuario: usuarioConRoles, token };
+    const password_hash = await bcrypt.hash(data.password, 10);
+    const rolPredeterminado = await rolRepository.findByName('usuario_clinico');
+    const creado = await usuarioRepository.createWithRole({ ...data, password_hash }, rolPredeterminado?.id);
+    const usuario = await usuarioRepository.findById(creado.id);
+    return { usuario, token: this.generarToken(usuario) };
   },
 
-  async login(data) {
-    const usuario = await usuarioRepository.findByEmail(data.email);
-    if (!usuario) {
-      throw new Error('Credenciales inválidas');
+  async login({ email, password }) {
+    const registro = await usuarioRepository.findByEmail(email);
+    if (!registro || !(await bcrypt.compare(password, registro.password_hash))) {
+      throw new AppError('Credenciales inválidas', 401);
     }
+    if (!registro.activo) throw new AppError('El usuario está desactivado', 403);
+    const usuario = await usuarioRepository.findById(registro.id);
+    return { usuario, token: this.generarToken(usuario) };
+  },
 
-    const esValido = await bcrypt.compare(data.password, usuario.password_hash);
-    if (!esValido) {
-      throw new Error('Credenciales inválidas');
+  async perfil(id) {
+    const usuario = await usuarioRepository.findById(id);
+    if (!usuario || !usuario.activo) throw new AppError('Usuario no encontrado', 404);
+    return usuario;
+  },
+
+  async cambiarPassword(id, { passwordActual, passwordNueva }) {
+    const registro = await usuarioRepository.findById(id);
+    const credenciales = await usuarioRepository.findByEmail(registro?.email || '');
+    if (!credenciales || !(await bcrypt.compare(passwordActual, credenciales.password_hash))) {
+      throw new AppError('La contraseña actual es incorrecta', 401);
     }
-
-    if (!usuario.activo) {
-      throw new Error('Usuario desactivado');
-    }
-
-    const usuarioConRoles = await usuarioRepository.findById(usuario.id);
-    const token = this.generarToken(usuarioConRoles);
-
-    return { usuario: usuarioConRoles, token };
+    await usuarioRepository.updatePassword(id, await bcrypt.hash(passwordNueva, 10));
   },
 
   generarToken(usuario) {
-    const roles = usuario.roles || [];
+    if (!process.env.JWT_SECRET) throw new AppError('JWT_SECRET no está configurado', 500);
     return jwt.sign(
-      { id: usuario.id, email: usuario.email, roles },
+      { id: usuario.id, email: usuario.email, roles: usuario.roles || [] },
       process.env.JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
   },
 };

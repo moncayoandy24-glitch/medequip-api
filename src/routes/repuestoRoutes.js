@@ -1,0 +1,13 @@
+const router=require('express').Router();
+const {repuestoController,validaciones}=require('../controllers/repuestoController');
+const {auth}=require('../middlewares/auth'); const {authorize}=require('../middlewares/role'); const {validate}=require('../middlewares/validate'); const {audit}=require('../middlewares/audit');
+const lectores=['admin','ingeniero_biomedico','tecnico'];
+router.use(auth,audit('repuestos'));
+router.get('/bajo-stock',authorize(...lectores),repuestoController.bajoStock);
+router.get('/',authorize(...lectores),validate(validaciones.listar),repuestoController.listar);
+router.get('/:id',authorize(...lectores),validate(validaciones.obtener),repuestoController.obtener);
+router.post('/',authorize('admin','ingeniero_biomedico'),validate(validaciones.crear),repuestoController.crear);
+router.put('/:id',authorize('admin','ingeniero_biomedico'),validate(validaciones.actualizar),repuestoController.actualizar);
+router.patch('/:id/stock',authorize('admin','ingeniero_biomedico','tecnico'),validate(validaciones.stock),repuestoController.stock);
+router.patch('/:id/estado',authorize('admin'),validate(validaciones.estado),repuestoController.estado);
+module.exports=router;

@@ -1,0 +1,2 @@
+const {dashboardRepository}=require('../repositories/dashboardRepository');
+const dashboardService={resumen:()=>dashboardRepository.resumen(),equiposPorEstado:()=>dashboardRepository.equiposPorEstado(),equiposPorArea:()=>dashboardRepository.equiposPorArea(),equiposPorCategoria:()=>dashboardRepository.equiposPorCategoria(),equiposPorRiesgo:()=>dashboardRepository.equiposPorRiesgo(),fallas:()=>dashboardRepository.fallas(),mantenimientos:()=>dashboardRepository.mantenimientos(),costos:()=>dashboardRepository.costos()};module.exports={dashboardService};

@@ -1,0 +1,14 @@
+const {body,param,query}=require('express-validator');const {fallaService:s}=require('../services/fallaService');const {asyncHandler}=require('../utils/asyncHandler');const {success}=require('../utils/response');
+const {ReporteFalla}=require('../entities/ReporteFalla');
+const prioridades=ReporteFalla.PRIORIDADES,estados=ReporteFalla.ESTADOS;
+const fallaController={
+ listar:asyncHandler(async(req,res)=>{const page=Number(req.query.page||1),limit=Number(req.query.limit||10),filters={...req.query,page,limit};if(req.user.roles.length===1&&req.user.roles.includes('usuario_clinico'))filters.reportado_por=req.user.id;const r=await s.listar(filters);return success(res,{message:'Reportes de fallas obtenidos correctamente',data:r.rows,pagination:{page,limit,total:r.total,totalPages:Math.ceil(r.total/limit)}})}),
+ obtener:asyncHandler(async(req,res)=>success(res,{message:'Reporte de falla obtenido correctamente',data:await s.obtener(req.params.id,req.user)})),
+ crear:asyncHandler(async(req,res)=>success(res,{status:201,message:'Falla reportada correctamente',data:await s.crear(req.body,req.user.id)})),
+ actualizar:asyncHandler(async(req,res)=>success(res,{message:'Reporte actualizado correctamente',data:await s.actualizar(req.params.id,req.body)})),
+ asignar:asyncHandler(async(req,res)=>success(res,{message:'Técnico asignado correctamente',data:await s.asignar(req.params.id,req.body.tecnico_id)})),
+ prioridad:asyncHandler(async(req,res)=>success(res,{message:'Prioridad actualizada correctamente',data:await s.prioridad(req.params.id,req.body.prioridad)})),
+ estado:asyncHandler(async(req,res)=>success(res,{message:'Estado de la falla actualizado correctamente',data:await s.estado(req.params.id,req.body.estado)})),
+ cerrar:asyncHandler(async(req,res)=>success(res,{message:'Falla cerrada correctamente',data:await s.cerrar(req.params.id,req.body)})),
+};
+const validaciones={listar:[query('page').optional().isInt({min:1}),query('limit').optional().isInt({min:1,max:100}),query('estado').optional().isIn(estados),query('prioridad').optional().isIn(prioridades),query('equipo_id').optional().isUUID(),query('tecnico_id').optional().isUUID()],obtener:[param('id').isUUID()],crear:[body('equipo_id').isUUID(),body('descripcion').trim().notEmpty(),body('prioridad').optional().isIn(prioridades),body('evidencia_url').optional({nullable:true}).isURL()],actualizar:[param('id').isUUID(),body('descripcion').optional().trim().notEmpty(),body('prioridad').optional().isIn(prioridades),body('evidencia_url').optional({nullable:true}).isURL()],asignar:[param('id').isUUID(),body('tecnico_id').isUUID()],prioridad:[param('id').isUUID(),body('prioridad').isIn(prioridades)],estado:[param('id').isUUID(),body('estado').isIn(estados.filter(e=>e!=='cerrada'))],cerrar:[param('id').isUUID(),body('solucion').trim().notEmpty()]};module.exports={fallaController,validaciones};

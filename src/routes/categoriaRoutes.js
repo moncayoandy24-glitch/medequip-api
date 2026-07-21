@@ -1,0 +1,14 @@
+const router = require('express').Router();
+const { categoriaController, validaciones } = require('../controllers/categoriaController');
+const { auth } = require('../middlewares/auth');
+const { authorize } = require('../middlewares/role');
+const { validate } = require('../middlewares/validate');
+const { audit } = require('../middlewares/audit');
+const lectores = ['admin', 'ingeniero_biomedico', 'tecnico', 'usuario_clinico'];
+router.use(auth, audit('categorias'));
+router.get('/', authorize(...lectores), validate(validaciones.listar), categoriaController.listar);
+router.get('/:id', authorize(...lectores), validate(validaciones.obtener), categoriaController.obtener);
+router.post('/', authorize('admin', 'ingeniero_biomedico'), validate(validaciones.crear), categoriaController.crear);
+router.put('/:id', authorize('admin', 'ingeniero_biomedico'), validate(validaciones.actualizar), categoriaController.actualizar);
+router.patch('/:id/estado', authorize('admin'), validate(validaciones.cambiarEstado), categoriaController.cambiarEstado);
+module.exports = router;
